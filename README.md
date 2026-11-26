@@ -1,4 +1,4 @@
-# OU-EKF-for-JR-NMM
+# Splitting-based EKF parameter inference for the stochastic Jansen–Rit neural mass model
 
 Code accompanying *"Splitting-based extended Kalman filtering for parameter inference in the stochastic Jansen–Rit neural mass model"* (Pauli, Tubikanec, Futschik).
 
@@ -191,11 +191,11 @@ Add `"obsStd"` to `unknown_parameters`.
 y_noisy <- simulate_em_baseline(subFac = 100, Delta = 0.002, maxT = 20,
                                 sigma = 2000, obsSd = sqrt(0.75))   # true R = 0.75
 
-res_R <- estimation_profile_ci(c("C", "mu", "sigma", "obsStd"), y_noisy)
+res_R <- estimation_profile_ci(c("C", "mu", "sigma", "obsStd"), y_noisy,link="identity")
 res_R
 # the "obsStd" row estimates R = 0.75
 ```
-
+Important again: If R can be a true zero, we recommend using the option `link="identity"`, as the usual log-scale biases the results away from zero.
 
 ### Fixing R to a positive value
 
