@@ -407,7 +407,7 @@ run_profile_ci_timeout <- function(obj, full_param_list, variable_indices,
 }
 
 # final thing
-estimation_profile_ci <- function(unknown_parameters, observation,
+ou_ekf <- function(unknown_parameters, observation,
                                   initial_values = NULL,
                                   nObs = length(observation),
                                   full_param_list = NULL, ...,

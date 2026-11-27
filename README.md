@@ -6,7 +6,7 @@ The code estimates parameters of the stochastic JR-NMM from a one-dimensional, E
 
 | Filter    | Discretisation                    | Main function                                    |
 |-----------|-----------------------------------|--------------------------------------------------|
-| **OU-EKF**  | Ornstein–Uhlenbeck Strang splitting | `estimation_profile_ci()`                        |
+| **OU-EKF**  | Ornstein–Uhlenbeck Strang splitting | `ou_ekf()`                        |
 | **WIE-EKF** | Wiener Strang splitting             | `wiener_inference_plus_ci()`                     |
 | **EM-EKF**  | Euler–Maruyama                      | `em_inference_plus_ci()`                         |
 
@@ -77,10 +77,10 @@ Other generators: You can use `type = "wi"` / `"ou"` in `simulate_em_baseline()`
 
 ## 2. Estimate C, µ, σ with OU-EKF
 
-`estimation_profile_ci()` is the main entry point.
+`ou_ekf()` is the main entry point.
 
 ```r
-res <- estimation_profile_ci(unknown_parameters = c("C", "mu", "sigma"),
+res <- ou_ekf(unknown_parameters = c("C", "mu", "sigma"),
                              observation        = y)
 res
 ```
@@ -99,7 +99,7 @@ True values for this simulation: C = 135, µ = 220, σ = 2000.
 ### Useful arguments
 
 ```r
-res <- estimation_profile_ci(
+res <- ou_ekf(
   unknown_parameters = c("C", "mu", "sigma"),
   observation        = y,
   initial_values     = c(C1 = 140, mu = 200, sigma = 2200),  # default: initialGuesses[...]
@@ -139,7 +139,7 @@ If the Hessian is not positive definite at the optimum you will get a warning; c
 Any subset of `param_strings` works, e.g. the synaptic gain A and µ:
 
 ```r
-estimation_profile_ci(c("A","mu"), y,
+ou_ekf(c("A","mu"), y,
                       initial_values = c(A = 4, mu = 200))
 ```
 
@@ -162,13 +162,13 @@ Comparing all three on the same data:
 
 ```r
 rbind(
-  OU  = estimation_profile_ci(c("C", "mu", "sigma"), y)[, 1],
+  OU  = ou_ekf(c("C", "mu", "sigma"), y)[, 1],
   WIE = wiener_inference_plus_ci(y)[, 1],
   EM  = em_inference_plus_ci(y)[, 1]
 )
 ```
 
-Differences to `estimation_profile_ci()`:
+Differences to `ou_ekf()`:
 
 - There is **no `nSubsteps` argument**; substepping is only implemented for OU-EKF.
 - If the confidence-interval computation fails, you get the estimates with `NA` intervals and a warning (the error message is stored in `attr(res, "ci_error")`).
@@ -180,7 +180,7 @@ Differences to `estimation_profile_ci()`:
 
 Add `"obsStd"` to `unknown_parameters`.
 
-> **Important:** despite its name (for what we will call legacy reasons), the `obsStd` slot of the EKF estimates the **observation-noise variance R**, not a standard deviation. The C++ likelihood takes `obs_var`, and `estimation_profile_ci()` squares the default `obsErr` when it builds the parameter list. So:
+> **Important:** despite its name (for what we will call legacy reasons), the `obsStd` slot of the EKF estimates the **observation-noise variance R**, not a standard deviation. The C++ likelihood takes `obs_var`, and `ou_ekf()` squares the default `obsErr` when it builds the parameter list. So:
 > - the estimate returned in the `obsStd` row is **R (variance)**;
 > - `initialGuesses["obsStd"] = 0.5` is a starting value for a *variance*;
 > - if you hand in your own `full_param_list`, slot 4 must contain the **variance**.
@@ -191,7 +191,7 @@ Add `"obsStd"` to `unknown_parameters`.
 y_noisy <- simulate_em_baseline(subFac = 100, Delta = 0.002, maxT = 20,
                                 sigma = 2000, obsSd = sqrt(0.75))   # true R = 0.75
 
-res_R <- estimation_profile_ci(c("C", "mu", "sigma", "obsStd"), y_noisy,link="identity")
+res_R <- ou_ekf(c("C", "mu", "sigma", "obsStd"), y_noisy,link="identity")
 res_R
 # the "obsStd" row estimates R = 0.75
 ```
@@ -207,7 +207,7 @@ fpl[[1]] <- y                   # observation
 fpl[[5]] <- length(y)           # nObs
 fpl[[4]] <- 2                   # fixed R = 2 (variance)
 
-estimation_profile_ci(c("C", "mu", "sigma"), y, full_param_list = fpl)
+ou_ekf(c("C", "mu", "sigma"), y, full_param_list = fpl)
 ```
 
 `full_param_list` slot order (same as `param_strings`):
@@ -244,7 +244,7 @@ fpl[[1]] <- y_coarse
 fpl[[5]] <- length(y_coarse)
 fpl[[6]] <- 0.01                       # observation step Delta
 
-estimation_profile_ci(c("C", "mu", "sigma"), y_coarse,
+ou_ekf(c("C", "mu", "sigma"), y_coarse,
                       full_param_list = fpl,
                       nSubsteps = 10)
 ```
@@ -266,7 +266,7 @@ fpl[[5]] <- length(eeg)
 fpl[[6]] <- 1 / 173.61                  # sampling interval
 fpl[[4]] <- 2                           # prescribed observation variance (paper's OU-EKF_unc uses R = 2)
 
-fit <- estimation_profile_ci(c("C", "mu", "sigma"), eeg,
+fit <- ou_ekf(c("C", "mu", "sigma"), eeg,
                              full_param_list = fpl,
                              nSubsteps = 10)
 fit
@@ -287,5 +287,5 @@ The paper's real-data analysis considers three ways of coping with model discrep
 - **`obsStd` is a variance** inside the filter (see Section 4).
 - `full_param_list` overrides the defaults entirely. If you build it yourself, set the observation (slot 1), `nObs` (slot 5), and, for non-default step sizes, `Delta` (slot 6).
 - If you change `Delta` but keep `sigma` fixed (not estimated) and use `nSubsteps = 1`, the transition matrices are *not* recomputed from the new `Delta`. Either estimate `sigma`, or use `nSubsteps > 1`, or rebuild `stepMat`/`covMat` with `expMt()` and `variableSigmaCovarMat()`.
-- Some older functions in `ekf_likelihood.R` are overridden in `ciTests.R` as it is sourced afterwards, the versions in `ciTests.R` are the ones in effect for `estimation_profile_ci`, `wiener_inference_plus_ci` and `em_inference_plus_ci`.
+- Some older functions in `ekf_likelihood.R` are overridden in `ciTests.R` as it is sourced afterwards, the versions in `ciTests.R` are the ones in effect for `ou_ekf`, `wiener_inference_plus_ci` and `em_inference_plus_ci`.
 - The sandwich intervals are asymptotic approximations; in the paper they give close to nominal coverage for OU-EKF when Δ is small enough, and deteriorate for large Δ without substepping.
